@@ -74,6 +74,7 @@ public class PreviewGenerationService extends IntentService {
         final Bundle extras = intent.getExtras();
         String pkgName = extras.getString(EXTRA_PKG_NAME);
         boolean hasSystemUi = false;
+        boolean hasHeaders = false;
         boolean hasIcons = false;
         boolean hasWallpaper = false;
         boolean hasStyles = false;
@@ -86,7 +87,9 @@ public class PreviewGenerationService extends IntentService {
                 // mods_status_bar was added in version 7 of the database so we need to make sure
                 // it exists when trying to get the int value from the row.
                 final int sysUiIndex = c.getColumnIndex(ThemesColumns.MODIFIES_STATUS_BAR);
+                final int headersIndex = c.getColumnIndex(ThemesColumns.MODIFIES_STATUSBAR_HEADERS);
                 hasSystemUi = sysUiIndex >= 0 && c.getInt(sysUiIndex) == 1;
+                hasHeaders = headersIndex >= 0 && c.getInt(headersIndex) == 1;
                 hasIcons = c.getInt(c.getColumnIndex(ThemesColumns.MODIFIES_ICONS)) == 1;
                 hasWallpaper = c.getInt(c.getColumnIndex(ThemesColumns.MODIFIES_LAUNCHER)) == 1 ||
                         c.getInt(c.getColumnIndex(ThemesColumns.MODIFIES_LOCKSCREEN)) == 1;
@@ -116,7 +119,7 @@ public class PreviewGenerationService extends IntentService {
 
                 SystemUiItems items = null;
                 try {
-                    items = !hasSystemUi ? null :
+                    items = (!hasSystemUi && !hasHeaders) ? null :
                             new SystemUiPreviewGenerator(this).generateSystemUiItems(pkgName);
                 } catch (Exception e) {
                     Log.e(TAG, "Unable to create statusbar previews for " + pkgName, e);
@@ -265,6 +268,22 @@ public class PreviewGenerationService extends IntentService {
                 path = PreviewUtils.compressAndSavePng(items.navbarRecent, filesDir, pkgName,
                         PreviewColumns.NAVBAR_RECENT_BUTTON);
                 values = createPreviewEntryString(id, PreviewColumns.NAVBAR_RECENT_BUTTON,
+                        path);
+                themeValues.add(values);
+
+                path = PreviewUtils.compressAndSavePng(items.headerMorning, filesDir, pkgName,
+                        PreviewColumns.HEADER_PREVIEW_1);
+                values = createPreviewEntryString(id, PreviewColumns.HEADER_PREVIEW_1, path);
+                themeValues.add(values);
+
+                path = PreviewUtils.compressAndSavePng(items.headerNoon, filesDir, pkgName,
+                        PreviewColumns.HEADER_PREVIEW_2);
+                values = createPreviewEntryString(id, PreviewColumns.HEADER_PREVIEW_2, path);
+                themeValues.add(values);
+
+                path = PreviewUtils.compressAndSavePng(items.headerEvening, filesDir, pkgName,
+                        PreviewColumns.HEADER_PREVIEW_3);
+                values = createPreviewEntryString(id, PreviewColumns.HEADER_PREVIEW_3,
                         path);
                 themeValues.add(values);
             }

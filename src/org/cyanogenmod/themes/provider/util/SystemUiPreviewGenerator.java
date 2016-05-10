@@ -22,14 +22,20 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Bitmap.Config;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.VectorDrawable;
+import android.util.AttributeSet;
+import android.util.DisplayMetrics;
+import android.util.Xml;
 import android.widget.FrameLayout;
 import org.cyanogenmod.themes.provider.view.BatteryMeterView;
 
 import org.cyanogenmod.themes.provider.R;
+import org.cyanogenmod.themes.provider.util.*;
+import org.xmlpull.v1.XmlPullParser;
 
 public class SystemUiPreviewGenerator {
     public static final String SYSTEMUI_PACKAGE = "com.android.systemui";
@@ -47,9 +53,13 @@ public class SystemUiPreviewGenerator {
     private static final String IC_SYSBAR_HOME = "ic_sysbar_home";
     private static final String IC_SYSBAR_RECENT = "ic_sysbar_recent";
     private static final String STATUS_BAR_ICON_SIZE = "status_bar_icon_size";
-
+    private static final String STATUS_BAR_HEADER_MORNING = "notifhead_morning";
+    private static final String STATUS_BAR_HEADER_NOON = "notifhead_noon";
+    private static final String STATUS_BAR_HEADER_EVENING = "notifhead_sunset";
     // Style used for tinting of wifi and signal icons
     private static final String DUAL_TONE_LIGHT_THEME = "DualToneLightTheme";
+    private static final int HEADER_WIDTH = 1440;
+    private static final int HEADER_HEIGHT = 300;
 
     private Context mContext;
 
@@ -107,12 +117,36 @@ public class SystemUiPreviewGenerator {
         items.navbarRecent = BitmapFactory.decodeResource(res, res.getIdentifier(IC_SYSBAR_RECENT,
                 "drawable", SYSTEMUI_PACKAGE));
 
+        final int headerWidth = convertDpToPixel(HEADER_WIDTH, mContext);
+        final int headerHeight = convertDpToPixel(HEADER_HEIGHT, mContext);
+
+        // Generate headers
+        d = themeContext.getDrawable(res.getIdentifier(STATUS_BAR_HEADER_MORNING, "drawable",
+                SYSTEMUI_PACKAGE));
+        items.headerMorning = BitmapUtils.getResizedBitmap(renderDrawableToBitmap(d, headerWidth, headerHeight), HEADER_WIDTH);
+        d = themeContext.getDrawable(res.getIdentifier(STATUS_BAR_HEADER_NOON, "drawable",
+                SYSTEMUI_PACKAGE));
+        items.headerNoon = BitmapUtils.getResizedBitmap(renderDrawableToBitmap(d, headerWidth, headerHeight), HEADER_WIDTH);
+        d = themeContext.getDrawable(res.getIdentifier(STATUS_BAR_HEADER_EVENING, "drawable",
+                SYSTEMUI_PACKAGE));
+        items.headerEvening = BitmapUtils.getResizedBitmap(renderDrawableToBitmap(d, headerWidth, headerHeight), HEADER_WIDTH);
         return items;
     }
 
+    private static int convertDpToPixel(float dp, Context context) {
+        Resources resources = context.getResources();
+        DisplayMetrics metrics = resources.getDisplayMetrics();
+        float px = dp * (metrics.densityDpi / 160f);
+        return Math.round(px);
+    }
+
     private Bitmap renderDrawableToBitmap(Drawable d, int iconSize) {
+        return renderDrawableToBitmap(d, iconSize, iconSize);
+    }
+
+    private Bitmap renderDrawableToBitmap(Drawable d, int iconWidth, int iconHeight) {
         if (d instanceof VectorDrawable) {
-            return renderVectorDrawableToBitmap((VectorDrawable) d, iconSize);
+            return renderVectorDrawableToBitmap((VectorDrawable) d, iconWidth, iconHeight);
         } else if (d instanceof BitmapDrawable) {
             return ((BitmapDrawable) d).getBitmap();
         }
@@ -120,10 +154,10 @@ public class SystemUiPreviewGenerator {
         return null;
     }
 
-    private Bitmap renderVectorDrawableToBitmap(VectorDrawable d, int iconSize) {
-        Bitmap bmp = Bitmap.createBitmap(iconSize, iconSize, Bitmap.Config.ARGB_8888);
+    private Bitmap renderVectorDrawableToBitmap(VectorDrawable d, int iconWidth, int iconHeight) {
+        Bitmap bmp = Bitmap.createBitmap(iconWidth, iconHeight, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
-        d.setBounds(0, 0, iconSize, iconSize);
+        d.setBounds(0, 0, iconWidth, iconHeight);
         d.draw(canvas);
 
         return bmp;
@@ -209,5 +243,12 @@ public class SystemUiPreviewGenerator {
         public Bitmap navbarBack;
         public Bitmap navbarHome;
         public Bitmap navbarRecent;
+
+        /**
+         * Statusbar Header items
+         */
+        public Bitmap headerMorning;
+        public Bitmap headerNoon;
+        public Bitmap headerEvening;
     }
 }

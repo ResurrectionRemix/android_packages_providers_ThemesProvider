@@ -41,10 +41,14 @@ import org.cyanogenmod.internal.util.ThemeUtils;
 import org.cyanogenmod.themes.provider.util.ProviderUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static android.content.res.ThemeConfig.SYSTEMUI_STATUSBAR_HEADER_PKG;
 import static android.content.res.ThemeConfig.SYSTEMUI_NAVBAR_PKG;
 import static android.content.res.ThemeConfig.SYSTEMUI_STATUS_BAR_PKG;
 import static android.content.res.ThemeConfig.SYSTEM_DEFAULT;
@@ -73,6 +77,19 @@ public class ThemePackageHelper {
                 "overlays/com.android.systemui");
         sComponentToFolderName.put(ThemesColumns.MODIFIES_LIVE_LOCK_SCREEN,
                 "live-lockscreen");
+        sComponentToFolderName.put(ThemesColumns.MODIFIES_STATUSBAR_HEADERS,
+                "overlays/com.android.systemui");
+    }
+
+    // allow theme to explicitly declare what components to show by listing desired
+    // components in a string array in package resources. Currently only "headers"
+    // is supported but soon "navbar" will also be supported
+    public static final String THEME_PACKAGE_WHITELIST = "theme_component_whitelist";
+
+    // map theme whitelist component names to theme column
+    public static HashMap<String, String> sComponentWhitelist = new HashMap<String, String>();
+    static {
+        sComponentWhitelist.put("headers", ThemesColumns.MODIFIES_STATUSBAR_HEADERS);
     }
 
     public static boolean insertPackage(Context context, String pkgName, boolean isProcessing)
@@ -320,7 +337,54 @@ public class ThemePackageHelper {
             boolean hasComponent = hasThemeComponent(themeContext, folderName);
             implementMap.put(component, hasComponent);
         }
+
+        // populate map first then pass through whitelist filter
+        filterWhitelistCapabilities(themeContext, implementMap);
         return implementMap;
+    }
+
+    private static void filterWhitelistCapabilities(Context themeContext,
+            Map<String, Boolean> capabilities) {
+        List<String> items = null;
+        try {
+            int id = themeContext.getResources().getIdentifier(THEME_PACKAGE_WHITELIST,
+                    "array",
+                    themeContext.getPackageName());
+            items = Arrays.asList(themeContext.getResources().getStringArray(id));
+        } catch (Exception e) {
+            Log.e(TAG, "Theme whitelist not supported for " + themeContext.getPackageName());
+        }
+        if (items != null && items.size() > 0) {
+            // validate entries against authorized whitelist elements
+            Log.e(TAG, "Theme whitelist found for " + themeContext.getPackageName() + " Elements: "
+                    + items.toString());
+            List<String> toRemove = new ArrayList<String>();
+            for (String component : items) {
+                if (!sComponentWhitelist.containsKey(component)) {
+                    toRemove.add(component);
+                    Log.e(TAG,
+                            "Unsupported whitelist element found in "
+                                    + themeContext.getPackageName() + " Elements: "
+                                    + component.toString());
+                }
+            }
+            items.removeAll(toRemove);
+            if (items.size() > 0) {
+                Log.e(TAG, "Whitelist elements validated in " + themeContext.getPackageName()
+                        + " Elements: " + items.toString() + " Disabling all other components");
+                // set everything to false
+                for (Map.Entry<String, Boolean> entry : capabilities.entrySet()) {
+                    String component = entry.getKey();
+                    Boolean isImplemented = false;
+                    capabilities.put(component, isImplemented);
+                }
+                for (String component : items) {
+                    String entry = sComponentWhitelist.get(component);
+                    Boolean isImplemented = true;
+                    capabilities.put(entry, isImplemented);
+                }
+            }
+        }
     }
 
     private static void insertCapabilities(Map<String, Boolean> capabilities,
@@ -381,7 +445,9 @@ public class ThemePackageHelper {
             if (pkgName.equals(themeConfig.getOverlayPkgNameForApp(SYSTEMUI_NAVBAR_PKG))) {
                 builder.setNavBar(pkgName);
             }
-
+            if (pkgName.equals(themeConfig.getOverlayPkgNameForApp(SYSTEMUI_STATUSBAR_HEADER_PKG))) {
+            builder.setHeaders(pkgName);
+	    }
             // Check if there are any per-app overlays using this theme
             final Map<String, ThemeConfig.AppTheme> themes = themeConfig.getAppThemes();
             for (String appPkgName : themes.keySet()) {
@@ -390,7 +456,6 @@ public class ThemePackageHelper {
                 }
             }
         }
-
         CmLockPatternUtils lockPatternUtils = new CmLockPatternUtils(context);
         if (lockPatternUtils.isThirdPartyKeyguardEnabled()) {
             String[] projection = {MixnMatchColumns.COL_VALUE};

@@ -38,7 +38,7 @@ import org.cyanogenmod.internal.util.ThemeUtils;
 public class ThemesOpenHelper extends SQLiteOpenHelper {
     private static final String TAG = ThemesOpenHelper.class.getName();
 
-    private static final int DATABASE_VERSION = 20;
+    private static final int DATABASE_VERSION = 21;
     private static final String DATABASE_NAME = "themes.db";
     private static final String SYSTEM_THEME_PKG_NAME = ThemeConfig.SYSTEM_DEFAULT;
     private static final String OLD_SYSTEM_THEME_PKG_NAME = "holo";
@@ -137,6 +137,10 @@ public class ThemesOpenHelper extends SQLiteOpenHelper {
             if (oldVersion == 19) {
                 upgradeToVersion20(db);
                 oldVersion = 20;
+            }  
+            if (oldVersion == 20) {
+                upgradeToVersion21(db);
+                oldVersion = 21;
             }
             if (oldVersion != DATABASE_VERSION) {
                 Log.e(TAG, "Recreating db because unknown database version: " + oldVersion);
@@ -496,6 +500,48 @@ public class ThemesOpenHelper extends SQLiteOpenHelper {
                 ThemesColumns.MODIFIES_LIVE_LOCK_SCREEN, ThemesColumns.PKG_NAME,
                 SYSTEM_THEME_PKG_NAME));
     }
+    
+    
+     private void upgradeToVersion21(SQLiteDatabase db) {
+         String sql = String.format("ALTER TABLE %s ADD COLUMN %s INTEGER",
+                 ThemesTable.TABLE_NAME, ThemesColumns.MODIFIES_STATUSBAR_HEADERS);
+         db.execSQL(sql);
+ 
+         // we need to update any existing themes
+         final String[] projection = {
+             ThemesColumns.PKG_NAME
+         };
+         final String selection = ThemesColumns.MODIFIES_STATUS_BAR + "=?";
+         final String[] selectionArgs = {
+             "1"
+         };
+         final Cursor c = db.query(ThemesTable.TABLE_NAME, projection, selection, selectionArgs,
+                 null, null, null);
+         if (c != null) {
+             while (c.moveToNext()) {
+                 final String pkgName = c.getString(0);
+                 boolean hasSystemUi = false;
+                 try {
+                     Context themeContext = mContext.createPackageContext(pkgName, 0);
+                     hasSystemUi = ThemePackageHelper.hasThemeComponent(themeContext,
+                             ThemePackageHelper.sComponentToFolderName.get(
+                                     ThemesColumns.MODIFIES_STATUS_BAR));
+                 } catch (PackageManager.NameNotFoundException e) {
+                     // default to false
+                 }
+                 if (hasSystemUi) {
+                     db.execSQL(String.format("UPDATE %s SET %s='1'", ThemesTable.TABLE_NAME,
+                             ThemesColumns.MODIFIES_STATUSBAR_HEADERS, ThemesColumns.PKG_NAME,
+                             pkgName));
+                     Intent intent = new Intent(mContext, PreviewGenerationService.class);
+                     intent.setAction(PreviewGenerationService.ACTION_INSERT);
+                     intent.putExtra(PreviewGenerationService.EXTRA_PKG_NAME, pkgName);
+                     mContext.startService(intent);
+                 }
+             }
+             c.close();
+         }
+     }
 
     private void dropTables(SQLiteDatabase db) {
         db.execSQL("DROP TABLE IF EXISTS " + ThemesTable.TABLE_NAME);
@@ -534,6 +580,7 @@ public class ThemesOpenHelper extends SQLiteOpenHelper {
                         ThemesColumns.MODIFIES_OVERLAYS + " INTEGER DEFAULT 0, " +
                         ThemesColumns.MODIFIES_STATUS_BAR + " INTEGER DEFAULT 0, " +
                         ThemesColumns.MODIFIES_NAVIGATION_BAR + " INTEGER DEFAULT 0, " +
+                        ThemesColumns.MODIFIES_STATUSBAR_HEADERS + " INTEGER DEFAULT 0, " +
                         ThemesColumns.MODIFIES_LIVE_LOCK_SCREEN + " INTEGER DEFAULT 0, " +
                         ThemesColumns.PRESENT_AS_THEME + " INTEGER DEFAULT 0, " +
                         ThemesColumns.IS_LEGACY_THEME + " INTEGER DEFAULT 0, " +
@@ -563,6 +610,7 @@ public class ThemesOpenHelper extends SQLiteOpenHelper {
             values.put(ThemesColumns.MODIFIES_RINGTONES, 1);
             values.put(ThemesColumns.MODIFIES_STATUS_BAR, 1);
             values.put(ThemesColumns.MODIFIES_NAVIGATION_BAR, 1);
+            values.put(ThemesColumns.MODIFIES_STATUSBAR_HEADERS, 1);
             values.put(ThemesColumns.PRESENT_AS_THEME, 1);
             values.put(ThemesColumns.IS_LEGACY_THEME, 0);
             values.put(ThemesColumns.IS_DEFAULT_THEME, isDefault);
@@ -639,6 +687,12 @@ public class ThemesOpenHelper extends SQLiteOpenHelper {
                 PreviewColumns.ICON_PREVIEW_2,
                 PreviewColumns.ICON_PREVIEW_3
         };
+        
+       public static final String[] STATUSBAR_HEADERS_PREVIEW_KEYS = {
+                PreviewColumns.HEADER_PREVIEW_1,
+                PreviewColumns.HEADER_PREVIEW_2,
+                PreviewColumns.HEADER_PREVIEW_3
+        };
 
         public static void insertDefaults(Context context) {
             Intent intent = new Intent(context, PreviewGenerationService.class);
@@ -653,5 +707,3 @@ public class ThemesOpenHelper extends SQLiteOpenHelper {
         return ThemeConfig.SYSTEM_DEFAULT == ThemeUtils.getDefaultThemePackageName(context);
     }
 }
-
-

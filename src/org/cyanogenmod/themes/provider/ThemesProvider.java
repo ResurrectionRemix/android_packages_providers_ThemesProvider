@@ -419,6 +419,15 @@ public class ThemesProvider extends ContentProvider {
                                         previewKey));
                                 delimeter = ",";
                             }
+                        } else if (ThemesColumns.MODIFIES_STATUSBAR_HEADERS.equals(component)) {
+                            for (String previewKey : PreviewsTable.STATUSBAR_HEADERS_PREVIEW_KEYS) {
+                                sb.append(delimeter).append(String.format(Locale.US,
+                                        "(SELECT %s AS %s FROM previews WHERE %s=%d AND %s='%s')",
+                                        PreviewColumns.COL_VALUE, previewKey,
+                                        PreviewColumns.THEME_ID, id, PreviewColumns.COL_KEY,
+                                        previewKey));
+                                delimeter = ",";
+                            }
                         } else if (ThemesColumns.MODIFIES_OVERLAYS.equals(component)) {
                             String previewKey = PreviewColumns.STYLE_PREVIEW;
                             sb.append(delimeter).append(String.format(Locale.US,
